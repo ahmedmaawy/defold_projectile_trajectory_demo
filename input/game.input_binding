@@ -1,0 +1,12 @@
+key_trigger {
+  input: KEY_ESC
+  action: "escape"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_LEFT
+  action: "left click"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_RIGHT
+  action: "right click"
+}

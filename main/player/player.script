@@ -1,0 +1,74 @@
+
+local rendercam = require "rendercam.rendercam"
+
+local G = sys.get_config("physics.gravity_y", -10)
+local vScale = 4 -- amount to scale velocity setting based on mouse position
+local iterations = 40 -- number of dots to make along projection line
+local projectTime = 2.0 -- seconds into the future to project trajectory
+local step = projectTime / iterations
+
+local dotScale = vmath.vector3(0.2)
+local lineColor = vmath.vector4(1, 1, 0, 1)
+
+
+local function spawn_dot(self, pos)
+	return factory.create("#factory", pos, nil, {}, dotScale)
+end
+
+local function update_dots(self)
+	for i, dot in ipairs(self.dots) do
+		local t = i*step -- time to project into the future, for this dot
+		local pos = vmath.vector3(self.pos)
+		pos.x = pos.x + self.initialV.x * t -- x velocity is not affected by gravity
+		pos.y = pos.y + self.initialV.y * t + 0.5 * (G * 0.95) * t * t -- y = initalV*t + 1/2 G*t-squared
+		go.set_position(pos, dot)
+	end
+end
+
+local function fire(self)
+	local ids = collectionfactory.create("#bulletfact", self.pos)
+	local body = msg.url(nil, ids[hash("/root")], "collisionobject")
+	msg.post(body, "apply_force", { force = self.initialV * (1/self.dt), position = go.get_position(ids[hash("/root")]) })
+end
+
+function init(self)
+	self.dt = 1/60
+	msg.post(".", "acquire_input_focus")
+	self.dots = {}
+	self.pos = go.get_position()
+	self.initialV = vmath.vector3(400, 400, 0)
+
+	for i=1, iterations do
+		table.insert(self.dots, spawn_dot(self))
+	end
+	update_dots(self)
+end
+
+function update(self, dt)
+	self.dt = dt
+	if self.click_pressed then
+		msg.post("@render:", "draw_line", { start_point = self.pos, end_point = self.mouse_wpos, color = lineColor })
+	end
+end
+
+function on_input(self, action_id, action)
+	if not action_id then
+		self.mouse_wpos = rendercam.screen_to_world_2d(action.screen_x, action.screen_y)
+		if self.click_pressed then
+			self.initialV = (self.mouse_wpos - self.pos) * vScale
+			update_dots(self)
+		end
+	end
+	if action_id == hash("left click") then
+		if action.pressed then
+			self.click_pressed = true
+			self.mouse_wpos = rendercam.screen_to_world_2d(action.screen_x, action.screen_y)
+			self.initialV = (self.mouse_wpos - self.pos) * vScale
+			update_dots(self)
+		elseif action.released then
+			self.click_pressed = false
+		end
+	elseif action_id == hash("right click") and action.pressed then
+		fire(self)
+	end
+end
